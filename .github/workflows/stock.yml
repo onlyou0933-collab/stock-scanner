@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
 
   schedule:
-    - cron: '30 6 * * 1-5'
+    - cron: "30 6 * * 1-5"
 
 jobs:
-  test:
+  scan:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,7 +17,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Run Python
+      - name: Install packages
+        run: pip install -r requirements.txt
+
+      - name: Run Scanner
         env:
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
