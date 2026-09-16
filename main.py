@@ -1,3 +1,4 @@
+import yfinance as yf
 import os
 import smtplib
 from email.mime.text import MIMEText
@@ -5,19 +6,21 @@ from email.mime.text import MIMEText
 EMAIL = os.getenv("EMAIL_ADDRESS")
 PASSWORD = os.getenv("EMAIL_PASSWORD")
 
-content = """
-股票掃描系統測試成功
+# 測試台積電資料
+stock = yf.Ticker("2330.TW")
+hist = stock.history(period="10d")
 
-明天開始改成正式版選股條件：
+content = f"""
+Yahoo Finance 測試成功
 
-1. 成交量 > 8000張
-2. 收盤價突破MA5
-3. 每天下午14:30自動寄送
+台積電最近資料：
+
+{hist.tail().to_string()}
 """
 
 msg = MIMEText(content)
 
-msg["Subject"] = "台股選股系統已上線"
+msg["Subject"] = "Yahoo Finance 測試"
 msg["From"] = EMAIL
 msg["To"] = EMAIL
 
@@ -28,3 +31,4 @@ server.send_message(msg)
 server.quit()
 
 print("Email Sent")
+
