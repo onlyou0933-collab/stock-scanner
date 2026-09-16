@@ -1,1 +1,3 @@
-print("Hello Taiwan Stock Scanner")
+email = "onlyou0933@gmail.com"
+
+print(email)
