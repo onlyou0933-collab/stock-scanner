@@ -1,26 +1,41 @@
 import os
-import smtplib
-import pandas as pd
+import requests
 import yfinance as yf
+import smtplib
 
 from email.mime.text import MIMEText
 
 EMAIL = os.getenv("EMAIL_ADDRESS")
 PASSWORD = os.getenv("EMAIL_PASSWORD")
 
-# 先測試這些股票
-stocks = {
-    "2330.TW": "台積電",
-    "2317.TW": "鴻海",
-    "2454.TW": "聯發科",
-    "2603.TW": "長榮",
-    "2609.TW": "陽明",
-    "2303.TW": "聯電",
-    "2881.TW": "富邦金",
-    "2882.TW": "國泰金",
-    "3231.TWO": "緯創",
-    "2382.TW": "廣達"
-}
+
+def get_stock_list():
+
+    stocks = {}
+
+    url = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"
+
+    try:
+
+        data = requests.get(url, timeout=30).json()
+
+        for row in data:
+
+            code = row.get("公司代號", "")
+            name = row.get("公司簡稱", "")
+
+            if code.isdigit():
+                stocks[f"{code}.TW"] = name
+
+    except Exception as e:
+        print("Get Stock List Error:", e)
+
+    return stocks
+
+
+stocks = get_stock_list()
+
+print(f"股票數量: {len(stocks)}")
 
 result = []
 
@@ -31,8 +46,8 @@ for symbol, name in stocks.items():
         df = yf.download(
             symbol,
             period="15d",
-            progress=False,
-            auto_adjust=False
+            auto_adjust=False,
+            progress=False
         )
 
         if len(df) < 6:
@@ -51,63 +66,65 @@ for symbol, name in stocks.items():
 
         vol_ma5 = int(volume.tail(5).mean() / 1000)
 
-        change_pct = (
-            (today_close - yesterday_close)
-            / yesterday_close
-            * 100
-        )
-
         signal = (
-            today_volume > 8000
+            today_volume > 5000
+            and today_close > 50
             and today_close > ma5_today
             and yesterday_close <= ma5_yesterday
-            and today_volume > vol_ma5
-            and change_pct >= 5
-            and today_close > 50
         )
 
         if signal:
 
             result.append({
+
                 "name": name,
-                "code": symbol.replace(".TW", "").replace(".TWO", ""),
+
+                "code": symbol.replace(".TW", ""),
+
                 "close": round(today_close, 2),
-                "change_pct": round(change_pct, 2),
+
                 "ma5": round(ma5_today, 2),
+
                 "volume": today_volume,
+
                 "vol_ma5": vol_ma5
+
             })
 
     except Exception as e:
+
         print(symbol, e)
 
+# 成交量排序
 result.sort(
     key=lambda x: x["volume"],
     reverse=True
 )
 
+# 前500名
+result = result[:500]
+
 html = """
-<h2>台股突破 MA5 選股通知</h2>
+<h2>台股突破 MA5 通知</h2>
 
 <p>
 條件：
 <ul>
-<li>成交量 > 8000張</li>
-<li>收盤價突破 MA5</li>
-<li>成交量突破 5日均量</li>
-<li>當日漲幅 ≥ 5%</li>
+<li>成交量 > 5000張</li>
 <li>股價 > 50元</li>
+<li>收盤價突破 MA5</li>
 </ul>
 </p>
 
-<table border="1" cellpadding="8" cellspacing="0"
-style="border-collapse:collapse;">
+<table border="1"
+       cellpadding="8"
+       cellspacing="0"
+       style="border-collapse:collapse;">
 
 <tr bgcolor="#D9EAD3">
 <th>股票名稱</th>
 <th>代號</th>
 <th>收盤價</th>
-<th>漲幅%</th>
 <th>MA5</th>
 <th>成交量(張)</th>
 <th>均量5日</th>
@@ -116,29 +133,36 @@ style="border-collapse:collapse;">
 
 for s in result:
 
-    url = f"https://tw.stock.yahoo.com/quote/{s['code']}"
+    yahoo_url = (
+        f"https://tw.stock.yahoo.com/quote/{s['code']}"
+    )
 
     html += f"""
     <tr>
-      <td>{s['name']}</td>
 
-      <td>
-        {url}
-          {s['code']}
-        </a>
-      </td>
+    <td>{s['name']}</td>
 
-      <td>{s['close']}</td>
-      <td>{s['change_pct']}%</td>
-      <td>{s['ma5']}</td>
-      <td>{s['volume']:,}</td>
-      <td>{s['vol_ma5']:,}</td>
+    <td>
+      {yahoo_url}
+      {s['code']}
+      </a>
+    </td>
+
+    <td>{s['close']}</td>
+
+    <td>{s['ma5']}</td>
+
+    <td>{s['volume']:,}</td>
+
+    <td>{s['vol_ma5']:,}</td>
+
     </tr>
     """
 
 html += "</table>"
 
-if len(result) == 0:
+if not result:
+
     html += "<br><b>今日沒有符合條件股票</b>"
 
 msg = MIMEText(
@@ -147,7 +171,7 @@ msg = MIMEText(
     "utf-8"
 )
 
-msg["Subject"] = "台股突破 MA5 選股通知"
+msg["Subject"] = f"台股突破 MA5 通知 ({len(result)}檔)"
 msg["From"] = EMAIL
 msg["To"] = EMAIL
 
