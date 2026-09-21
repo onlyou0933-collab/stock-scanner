@@ -25,17 +25,19 @@ def get_stock_list():
             name = row.get("公司簡稱", "")
 
             if code.isdigit():
+
                 stocks[f"{code}.TW"] = name
 
     except Exception as e:
-        print("Get Stock List Error:", e)
+
+        print("股票清單取得失敗:", e)
 
     return stocks
 
 
 stocks = get_stock_list()
 
-print(f"股票數量: {len(stocks)}")
+print(f"取得股票數量: {len(stocks)}")
 
 result = []
 
@@ -46,8 +48,8 @@ for symbol, name in stocks.items():
         df = yf.download(
             symbol,
             period="15d",
-            auto_adjust=False,
-            progress=False
+            progress=False,
+            auto_adjust=False
         )
 
         if len(df) < 6:
@@ -67,122 +69,26 @@ for symbol, name in stocks.items():
         vol_ma5 = int(volume.tail(5).mean() / 1000)
 
         signal = (
+
+            # 成交量 > 5000張
             today_volume > 5000
+
+            # 股價 > 50元
             and today_close > 50
+
+            # 價格突破MA5
             and today_close > ma5_today
             and yesterday_close <= ma5_yesterday
+
+            # 量突破5日均量
+            and today_volume > vol_ma5
+
         )
 
-        if signal = (
-    today_volume > 5000
-    and today_close > 50
+        if signal:
 
-    # 價格突破MA5
-    and today_close > ma5_today
-    and yesterday_close <= ma5_yesterday
+            result.append({
 
-    # 量突破量MA5
-    and today_volume > vol_ma5
-)
+                "name": name,
 
-    except Exception as e:
-
-        print(symbol, e)
-
-# 成交量排序
-result.sort(
-    key=lambda x: x["volume"],
-    reverse=True
-)
-
-# 前500名
-result = result[:500]
-
-html = """
-<h2>台股突破 MA5 通知</h2>
-
-<p>
-條件：
-<ul>
-<li>成交量 > 5000張</li>
-<li>股價 > 50元</li>
-<li>收盤價突破 MA5</li>
-</ul>
-</p>
-
-<table border="1"
-       cellpadding="8"
-       cellspacing="0"
-       style="border-collapse:collapse;">
-
-<tr bgcolor="#D9EAD3">
-<th>股票名稱</th>
-<th>代號</th>
-<th>收盤價</th>
-<th>MA5</th>
-<th>成交量(張)</th>
-<th>均量5日</th>
-</tr>
-"""
-
-for s in result:
-
-    yahoo_url = (
-        f"https://tw.stock.yahoo.com/quote/{s['code']}"
-    )
-
-    html += f"""
-    <tr>
-
-    <td>{s['name']}</td>
-
-    <td>
-      {yahoo_url}
-      {s['code']}
-      </a>
-    </td>
-
-    <td>{s['close']}</td>
-
-    <td>{s['ma5']}</td>
-
-    <td>{s['volume']:,}</td>
-
-    <td>{s['vol_ma5']:,}</td>
-
-    </tr>
-    """
-
-html += "</table>"
-
-if not result:
-
-    html += "<br><b>今日沒有符合條件股票</b>"
-
-msg = MIMEText(
-    html,
-    "html",
-    "utf-8"
-)
-
-msg["Subject"] = f"台股突破 MA5 通知 ({len(result)}檔)"
-msg["From"] = EMAIL
-msg["To"] = EMAIL
-
-server = smtplib.SMTP(
-    "smtp.gmail.com",
-    587
-)
-
-server.starttls()
-
-server.login(
-    EMAIL,
-    PASSWORD
-)
-
-server.send_message(msg)
-
-server.quit()
-
-print("Email Sent")
+        
