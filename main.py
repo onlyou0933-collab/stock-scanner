@@ -5,6 +5,7 @@ import smtplib
 
 from email.mime.text import MIMEText
 
+
 EMAIL = os.getenv("EMAIL_ADDRESS")
 PASSWORD = os.getenv("EMAIL_PASSWORD")
 
@@ -13,16 +14,17 @@ def get_stock_list():
 
     stocks = {}
 
-    url = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"
+    api_url = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"
 
     try:
 
-        data = requests.get(url, timeout=30).json()
+        response = requests.get(api_url, timeout=30)
+        data = response.json()
 
         for row in data:
 
-            code = row.get("公司代號", "")
-            name = row.get("公司簡稱", "")
+            code = str(row.get("公司代號", "")).strip()
+            name = str(row.get("公司簡稱", "")).strip()
 
             if code.isdigit():
 
@@ -30,16 +32,17 @@ def get_stock_list():
 
     except Exception as e:
 
-        print("股票清單取得失敗:", e)
+        print("取得股票清單失敗：", e)
 
     return stocks
 
 
 stocks = get_stock_list()
 
-print(f"取得股票數量: {len(stocks)}")
+print(f"股票數量: {len(stocks)}")
 
 result = []
+
 
 for symbol, name in stocks.items():
 
@@ -48,15 +51,16 @@ for symbol, name in stocks.items():
         df = yf.download(
             symbol,
             period="15d",
+            auto_adjust=False,
             progress=False,
-            auto_adjust=False
+            threads=False
         )
 
         if len(df) < 6:
             continue
 
-        close = df["Close"].squeeze()
-        volume = df["Volume"].squeeze()
+        close = df["Close"]
+        volume = df["Volume"]
 
         today_close = float(close.iloc[-1])
         yesterday_close = float(close.iloc[-2])
@@ -73,15 +77,21 @@ for symbol, name in stocks.items():
             # 成交量 > 5000張
             today_volume > 5000
 
-            # 股價 > 50元
-            and today_close > 50
+            and
 
-            # 價格突破MA5
-            and today_close > ma5_today
+            # 股價 > 50元
+            today_close > 50
+
+            and
+
+            # 收盤價突破 MA5
+            today_close > ma5_today
             and yesterday_close <= ma5_yesterday
 
-            # 量突破5日均量
-            and today_volume > vol_ma5
+            and
+
+            # 成交量突破均量
+            today_volume > vol_ma5
 
         )
 
@@ -90,5 +100,70 @@ for symbol, name in stocks.items():
             result.append({
 
                 "name": name,
+                "code": symbol.replace(".TW", ""),
+                "close": round(today_close, 2),
+                "ma5": round(ma5_today, 2),
+                "volume": today_volume,
+                "vol_ma5": vol_ma5
 
-        
+            })
+
+    except Exception as e:
+
+        print(symbol, e)
+
+
+result.sort(
+    key=lambda x: x["volume"],
+    reverse=True
+)
+
+
+html = """
+<html>
+<body>
+
+<h2>台股突破 MA5 通知</h2>
+
+<p>
+條件：
+</p>
+
+<ul>
+<li>成交量 > 5000張</li>
+<li>股價 > 50元</li>
+<li>收盤價突破 MA5</li>
+<li>成交量突破 5日均量</li>
+</ul>
+
+<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
+
+<tr bgcolor="#D9EAD3">
+<th>股票名稱</th>
+<th>代號</th>
+<th>收盤價</th>
+<th>MA5</th>
+<th>成交量(張)</th>
+<th>均量5日</th>
+</tr>
+"""
+
+
+for s in result:
+
+    yahoo_url = f"https://tw.stock.yahoo.com/quote/{s['code']}"
+
+    html += f"""
+    <tr>
+
+        <td>{s['name']}</td>
+
+        <td>
+            {yahoo_url}
+                {s['code']}
+            </a>
+        </td>
+
+        <td>{s['close']}</td>
+
+        <td
