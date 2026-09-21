@@ -73,23 +73,17 @@ for symbol, name in stocks.items():
             and yesterday_close <= ma5_yesterday
         )
 
-        if signal:
+        if signal = (
+    today_volume > 5000
+    and today_close > 50
 
-            result.append({
+    # 價格突破MA5
+    and today_close > ma5_today
+    and yesterday_close <= ma5_yesterday
 
-                "name": name,
-
-                "code": symbol.replace(".TW", ""),
-
-                "close": round(today_close, 2),
-
-                "ma5": round(ma5_today, 2),
-
-                "volume": today_volume,
-
-                "vol_ma5": vol_ma5
-
-            })
+    # 量突破量MA5
+    and today_volume > vol_ma5
+)
 
     except Exception as e:
 
